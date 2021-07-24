@@ -5,6 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 app = Flask(__name__)
 api = Api(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///todos.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS']= False
 db = SQLAlchemy(app)
 
 class TodoModel(db.Model):
@@ -62,9 +63,9 @@ class Todo(Resource):
         task = TodoModel.query.filter_by(id=todo_id).first()
         if not task:
             abort(404,message="Task does not Exist!")
-        elif args['task']:
+        if args['task']:
             task.task = args['task']
-        elif args['summary']:
+        if args['summary']:
             task.summary = args['summary']
         db.session.commit()     
         return task     
@@ -74,7 +75,8 @@ class Todo(Resource):
         if not task:
             abort(400,message="This id already deleted or does not exist.")
         db.session.delete(task)
-        return "successfully deleted",204
+        db.session.commit()
+        return "successfully deleted"
 
 api.add_resource(Todo,'/todos/<int:todo_id>')
 api.add_resource(TodoList,'/todos')
