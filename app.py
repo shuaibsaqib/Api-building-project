@@ -1,12 +1,35 @@
-from flask import Flask
+from Login.view import LoginController
+from flask import Flask,request
 from flask_restful import Resource,Api,reqparse,abort,fields,marshal_with
 from flask_sqlalchemy import SQLAlchemy
+from flask_httpauth import HTTPBasicAuth
+from functools import wraps
+import jwt
+import json
 
 app = Flask(__name__)
 api = Api(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///todos.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS']= False
 db = SQLAlchemy(app)
+auth = HTTPBasicAuth()
+app.config['SECRET_KEY'] = '8ee2923d3cd2b2833d3b747173f6c0da'
+
+def verify_token(f):
+
+    @wraps(f)
+    def decorator(*args, **kwargs):
+        token = request.args.get('token', None)
+        if token is None:
+            return {"Message":"Your are missing Token"}
+        else:
+            try:
+                data = jwt.decode(token, app.config['SECRET_KEY'])
+                return f(*args, **kwargs)
+            except Exception as e:
+                return {"Message":"Token is invalid! "}
+    return decorator
+  
 
 class TodoModel(db.Model):
     id = db.Column(db.Integer,primary_key=True)
@@ -28,6 +51,7 @@ resource_fields ={
 }
 
 class TodoList(Resource):
+    @verify_token
     def get(self):
         tasks = TodoModel.query.all()
         todos = {}
@@ -39,6 +63,7 @@ class TodoList(Resource):
 
 
 class Todo(Resource):
+    @verify_token
     @marshal_with(resource_fields)
     def get(self,todo_id):
         task = TodoModel.query.filter_by(id=todo_id).first()
@@ -46,6 +71,7 @@ class Todo(Resource):
             abort(404,message="Could not find the task with this id")
         return task    
 
+    @verify_token
     @marshal_with(resource_fields)
     def post(self,todo_id):
         args= task_post_args.parse_args()
@@ -57,6 +83,7 @@ class Todo(Resource):
         db.session.commit()
         return todo,201
 
+    @verify_token
     @marshal_with(resource_fields)
     def put(self,todo_id):
         args = task_put_args.parse_args()
@@ -70,6 +97,7 @@ class Todo(Resource):
         db.session.commit()     
         return task     
 
+    @verify_token
     def delete(self,todo_id):
         task = TodoModel.query.filter_by(id=todo_id).first()
         if not task:
@@ -78,6 +106,7 @@ class Todo(Resource):
         db.session.commit()
         return "successfully deleted"
 
+api.add_resource(LoginController,'/login')
 api.add_resource(Todo,'/todos/<int:todo_id>')
 api.add_resource(TodoList,'/todos')
 
